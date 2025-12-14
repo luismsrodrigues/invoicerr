@@ -11,6 +11,7 @@ import { baseTemplate } from '@/modules/receipts/templates/base.template';
 import { formatDate } from '@/utils/date';
 import prisma from '@/prisma/prisma.service';
 import { randomUUID } from 'crypto';
+import { logger } from '@/logger/logger.service';
 
 @Injectable()
 export class ReceiptsService {
@@ -203,6 +204,8 @@ export class ReceiptsService {
             this.logger.error('Failed to dispatch RECEIPT_CREATED webhook', error);
         }
 
+        logger.info('Receipt created', { category: 'receipt', details: { receiptId: receipt.id, companyId: invoice.company?.id } });
+
         return receipt;
     }
 
@@ -240,6 +243,8 @@ export class ReceiptsService {
         } catch (error) {
             this.logger.error('Failed to dispatch RECEIPT_CREATED_FROM_INVOICE webhook', error);
         }
+
+        logger.info('Receipt created from invoice', { category: 'receipt', details: { receiptId: newReceipt.id, invoiceId } });
 
         return newReceipt;
     }
@@ -298,6 +303,8 @@ export class ReceiptsService {
             this.logger.error('Failed to dispatch RECEIPT_UPDATED webhook', error);
         }
 
+        logger.info('Receipt updated', { category: 'receipt', details: { receiptId: updatedReceipt.id } });
+
         return updatedReceipt;
     }
 
@@ -339,6 +346,8 @@ export class ReceiptsService {
         } catch (error) {
             this.logger.error('Failed to dispatch RECEIPT_DELETED webhook', error);
         }
+
+        logger.info('Receipt deleted', { category: 'receipt', details: { receiptId: id } });
 
         return { message: 'Receipt deleted successfully' };
     }

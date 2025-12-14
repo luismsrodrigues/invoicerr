@@ -1,6 +1,6 @@
 import * as Handlebars from 'handlebars';
 
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateInvoiceDto, EditInvoicesDto } from '@/modules/invoices/dto/invoices.dto';
 import { EInvoice, ExportFormat } from '@fin.cx/einvoice';
 import { getInvertColor, getPDF } from '@/utils/pdf';
@@ -13,18 +13,17 @@ import { baseTemplate } from '@/modules/invoices/templates/base.template';
 import { business } from '@tsclass/tsclass/dist_ts';
 import { finance } from '@fin.cx/einvoice/dist_ts/plugins';
 import { formatDate } from '@/utils/date';
+import { logger } from '@/logger/logger.service';
 import { parseAddress } from '@/utils/adress';
 import prisma from '@/prisma/prisma.service';
 
 @Injectable()
 export class InvoicesService {
-    private readonly logger: Logger;
 
     constructor(
         private readonly mailService: MailService,
         private readonly webhookDispatcher: WebhookDispatcherService
     ) {
-        this.logger = new Logger(InvoicesService.name);
     }
 
 
@@ -149,6 +148,8 @@ export class InvoicesService {
             },
         });
 
+        logger.info('Invoice created', { category: 'invoice', details: { invoiceId: invoice.id, clientId: client.id } });
+
         try {
             await this.webhookDispatcher.dispatch(WebhookEvent.INVOICE_CREATED, {
                 invoice,
@@ -156,7 +157,7 @@ export class InvoicesService {
                 company,
             });
         } catch (error) {
-            this.logger.error('Failed to dispatch INVOICE_CREATED webhook', error);
+            logger.error('Failed to dispatch INVOICE_CREATED webhook', { category: 'invoice', details: { error } });
         }
 
         return invoice;
@@ -256,6 +257,8 @@ export class InvoicesService {
             },
         });
 
+        logger.info('Invoice updated', { category: 'invoice', details: { invoiceId: updateInvoice.id } });
+
         try {
             await this.webhookDispatcher.dispatch(WebhookEvent.INVOICE_UPDATED, {
                 invoice: updateInvoice,
@@ -263,7 +266,7 @@ export class InvoicesService {
                 company: updateInvoice.company,
             });
         } catch (error) {
-            this.logger.error('Failed to dispatch INVOICE_UPDATED webhook', error);
+            logger.error('Failed to dispatch INVOICE_UPDATED webhook', { category: 'invoice', details: { error } });
         }
 
         return updateInvoice;
@@ -288,6 +291,8 @@ export class InvoicesService {
             data: { isActive: false },
         });
 
+        logger.info('Invoice deleted', { category: 'invoice', details: { invoiceId: id } });
+
         try {
             await this.webhookDispatcher.dispatch(WebhookEvent.INVOICE_DELETED, {
                 invoice: existingInvoice,
@@ -295,7 +300,7 @@ export class InvoicesService {
                 company: existingInvoice.company,
             });
         } catch (error) {
-            this.logger.error('Failed to dispatch INVOICE_DELETED webhook', error);
+            logger.error('Failed to dispatch INVOICE_DELETED webhook', { category: 'invoice', details: { error } });
         }
 
         return deletedInvoice;
@@ -544,16 +549,16 @@ export class InvoicesService {
 
         const validation = await inv.validate()
 
-        this.logger.log('E-Invoice validation result: ' + (validation.valid ? 'valid' : 'invalid'));
-        this.logger.log('E-Invoice validation warnings: ' + (validation.warnings ? validation.warnings.length : '0'));
-        this.logger.log('E-Invoice validation errors: ' + (validation.errors ? validation.errors.length : '0'));
+        logger.info('E-Invoice validation result: ' + (validation.valid ? 'valid' : 'invalid'), { category: 'invoice' });
+        logger.info('E-Invoice validation warnings: ' + (validation.warnings ? validation.warnings.length : '0'), { category: 'invoice' });
+        logger.info('E-Invoice validation errors: ' + (validation.errors ? validation.errors.length : '0'), { category: 'invoice' });
 
         if (!validation.valid) {
-            validation.warnings && this.logger.warn('Validation warnings:');
-            validation.warnings && this.logger.warn(validation.warnings)
+            if (validation.warnings) {
+                logger.warn('Validation warnings:', { category: 'invoice', details: { warnings: validation.warnings } });
+            }
 
-            this.logger.error('Validation errors:');
-            this.logger.error(validation.errors)
+            logger.error('Validation errors:', { category: 'invoice', details: { errors: validation.errors } });
         }
 
         return inv;
@@ -599,6 +604,8 @@ export class InvoicesService {
             paymentDetails: (quote as any).paymentDetails || undefined,
         });
 
+        logger.info('Invoice created from quote', { category: 'invoice', details: { invoiceId: newInvoice.id, quoteId } });
+
         try {
             await this.webhookDispatcher.dispatch(WebhookEvent.INVOICE_CREATED_FROM_QUOTE, {
                 invoice: newInvoice,
@@ -607,7 +614,7 @@ export class InvoicesService {
                 company: quote.company,
             });
         } catch (error) {
-            this.logger.error('Failed to dispatch INVOICE_CREATED_FROM_QUOTE webhook', error);
+            logger.error('Failed to dispatch INVOICE_CREATED_FROM_QUOTE webhook', { category: 'invoice', details: { error } });
         }
 
         return newInvoice;
@@ -632,6 +639,8 @@ export class InvoicesService {
             data: { status: 'PAID', paidAt: new Date() }
         });
 
+        logger.info('Invoice marked as paid', { category: 'invoice', details: { invoiceId } });
+
         try {
             await this.webhookDispatcher.dispatch(WebhookEvent.INVOICE_MARKED_AS_PAID, {
                 invoice: paidInvoice,
@@ -640,20 +649,20 @@ export class InvoicesService {
                 paidAt: paidInvoice.paidAt,
             });
         } catch (error) {
-            this.logger.error('Failed to dispatch INVOICE_MARKED_AS_PAID webhook', error);
+            logger.error('Failed to dispatch INVOICE_MARKED_AS_PAID webhook', { category: 'invoice', details: { error } });
         }
 
         try {
-            this.logger.log(`Uploading paid invoice ${invoiceId} to storage providers...`);
+            logger.info(`Uploading paid invoice ${invoiceId} to storage providers...`, { category: 'invoice' });
             const pdfBuffer = await this.getInvoicePdf(invoiceId);
             const uploadedUrls = await StorageUploadService.uploadPaidInvoicePdf(invoiceId, pdfBuffer);
             if (uploadedUrls.length > 0) {
-                this.logger.log(`Invoice ${invoiceId} successfully uploaded to ${uploadedUrls.length} storage provider(s)`);
+                logger.info(`Invoice ${invoiceId} successfully uploaded to ${uploadedUrls.length} storage provider(s)`, { category: 'invoice', details: { uploadedUrls } });
             }
         } catch (error) {
-            this.logger.error(
+            logger.error(
                 `Failed to upload paid invoice ${invoiceId} to storage providers`,
-                error instanceof Error ? error.message : String(error)
+                { category: 'invoice', details: { error: error instanceof Error ? error.message : String(error) } }
             );
         }
 
@@ -714,6 +723,8 @@ export class InvoicesService {
             throw new BadRequestException('Failed to send invoice email. Please check your SMTP configuration.');
         }
 
+        logger.info('Invoice sent by email', { category: 'invoice', details: { invoiceId, email: invoice.client.contactEmail } });
+
         try {
             await this.webhookDispatcher.dispatch(WebhookEvent.INVOICE_SENT, {
                 invoice,
@@ -722,7 +733,7 @@ export class InvoicesService {
                 sentAt: new Date(),
             });
         } catch (error) {
-            this.logger.error('Failed to dispatch INVOICE_SENT webhook', error);
+            logger.error('Failed to dispatch INVOICE_SENT webhook', { category: 'invoice', details: { error } });
         }
 
         return { message: 'Invoice sent successfully' };

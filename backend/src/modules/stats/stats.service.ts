@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import prisma from '@/prisma/prisma.service';
+import { logger } from '@/logger/logger.service';
 
 type MonthStat = { month: number; invoiced: number; revenue: number; deposits: number; };
 type YearStat = { year: number; invoiced: number; revenue: number; deposits: number; };

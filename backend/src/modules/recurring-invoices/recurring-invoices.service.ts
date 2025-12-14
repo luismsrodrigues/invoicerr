@@ -4,6 +4,7 @@ import { Currency, WebhookEvent } from '../../../prisma/generated/prisma/client'
 import { UpsertInvoicesDto } from '@/modules/recurring-invoices/dto/invoices.dto';
 import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import prisma from '@/prisma/prisma.service';
+import { logger } from '@/logger/logger.service';
 
 @Injectable()
 export class RecurringInvoicesService {
@@ -118,6 +119,8 @@ export class RecurringInvoicesService {
             this.logger.error('Failed to dispatch RECURRING_INVOICE_CREATED webhook', error);
         }
 
+        logger.info('Recurring invoice created', { category: 'recurring-invoice', details: { invoiceId: recurringInvoice.id, companyId: company?.id } });
+
         return recurringInvoice;
     }
 
@@ -185,6 +188,8 @@ export class RecurringInvoicesService {
             this.logger.error('Failed to dispatch RECURRING_INVOICE_UPDATED webhook', error);
         }
 
+        logger.info('Recurring invoice updated', { category: 'recurring-invoice', details: { invoiceId: recurringInvoice.id, companyId: company?.id } });
+
         return recurringInvoice;
     }
 
@@ -243,6 +248,8 @@ export class RecurringInvoicesService {
         } catch (error) {
             this.logger.error('Failed to dispatch RECURRING_INVOICE_DELETED webhook', error);
         }
+
+        logger.info('Recurring invoice deleted', { category: 'recurring-invoice', details: { invoiceId: id } });
 
         return deletedRecurringInvoice;
     }

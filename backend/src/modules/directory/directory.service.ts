@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import prisma from '@/prisma/prisma.service';
 import { existsSync, mkdirSync, readdirSync, statSync } from 'fs';
 import { normalize, resolve } from 'path';
+import { logger } from '@/logger/logger.service';
 
 export interface IDirectoryItem {
     name: string;
@@ -222,6 +224,8 @@ export class DirectoryService {
 
             // Create the directory
             mkdirSync(newPath, { recursive: false });
+
+            logger.info('Directory created', { category: 'directory', details: { path: newPath } });
 
             return {
                 name: folderName,

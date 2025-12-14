@@ -1,16 +1,15 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { EditClientsDto } from '@/modules/clients/dto/clients.dto';
 import { WebhookDispatcherService } from '../webhooks/webhook-dispatcher.service';
 import { WebhookEvent } from '../../../prisma/generated/prisma/client';
+import { logger } from '@/logger/logger.service';
 import prisma from '@/prisma/prisma.service';
 
 @Injectable()
 export class ClientsService {
-    private readonly logger: Logger;
 
     constructor(private readonly webhookDispatcher: WebhookDispatcherService) {
-        this.logger = new Logger(ClientsService.name);
     }
 
     async getClients(page: string) {
@@ -69,7 +68,7 @@ export class ClientsService {
                 results: results.length,
             });
         } catch (error) {
-            this.logger.error('Failed to dispatch CLIENT_SEARCHED webhook', error);
+            logger.error('Failed to dispatch CLIENT_SEARCHED webhook', { category: 'client', details: { error } });
         }
 
         return results;
@@ -101,12 +100,14 @@ export class ClientsService {
 
         const newClient = await prisma.client.create({ data });
 
+        logger.info('Client created', { category: 'client', details: { clientId: newClient.id } });
+
         try {
             await this.webhookDispatcher.dispatch(WebhookEvent.CLIENT_CREATED, {
                 client: newClient,
             });
         } catch (error) {
-            this.logger.error('Failed to dispatch CLIENT_CREATED webhook', error);
+            logger.error('Failed to dispatch CLIENT_CREATED webhook', { category: 'client', details: { error } });
         }
 
         return newClient;
@@ -147,12 +148,14 @@ export class ClientsService {
             data: { ...editClientsDto, isActive: true },
         });
 
+        logger.info('Client updated', { category: 'client', details: { clientId: updatedClient.id } });
+
         try {
             await this.webhookDispatcher.dispatch(WebhookEvent.CLIENT_UPDATED, {
                 client: updatedClient,
             });
         } catch (error) {
-            this.logger.error('Failed to dispatch CLIENT_UPDATED webhook', error);
+            logger.error('Failed to dispatch CLIENT_UPDATED webhook', { category: 'client', details: { error } });
         }
 
         return updatedClient;
@@ -170,12 +173,14 @@ export class ClientsService {
             data: { isActive: false },
         });
 
+        logger.info('Client deleted', { category: 'client', details: { clientId: id } });
+
         try {
             await this.webhookDispatcher.dispatch(WebhookEvent.CLIENT_DELETED, {
                 client: existingClient,
             });
         } catch (error) {
-            this.logger.error('Failed to dispatch CLIENT_DELETED webhook', error);
+            logger.error('Failed to dispatch CLIENT_DELETED webhook', { category: 'client', details: { error } });
         }
 
         return deletedClient;
